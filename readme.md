@@ -1,0 +1,30 @@
+# Overview
+
+This repository contains the source code accompanying the paper
+Rauh, J., Schünemann, M., & Jost, J. (2021). Properties of unique information.
+In Kybernetika (pp. 383–403). Institute of Information Theory and Automation.
+https://doi.org/10.14736/kyb-2021-3-0383
+
+In addition, it contains a matlab fmincon based implementation of the BROJA PID measure
+Bertschinger, N., Rauh, J., Olbrich, E., Jost, J., & Ay, N. (2014).
+Quantifying unique information. Entropy, 16(4), 2161-2183.
+
+in the file PID.m
+
+The closed form analytical solution for this measure is found in
+binary_analytical.m
+
+The faster implementation of the PID optimization problem for the case of binary output variable
+based finding optima in the interior via solving a linear program is contained in
+Min_MI_X_YZ_binary_T.m
+
+Figure 1 is the paper is reproduced by the script
+fig1script.m
+
+and the tables summarizing the statistics of unique/non-unique solutions in the interior/boundary of the
+optimization domain were created using the script
+statistics_inner_uniqueness.m
+and saved in the data/ subdirectory.
+
+
+

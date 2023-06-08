@@ -1,0 +1,118 @@
+function [x,fval,x_orig,gb,igb,V,inner,arank,unique] = Min_MI_X_YZ_binary_T(p,options,use_hess,only_inner,calc_extreme_points)
+   if nargin < 2
+        options = optimoptions('fmincon');
+        options.Algorithm = 'interior-point';%'sqp';%'active-set';
+        options.Display = 'iter-detailed';
+        options.HonorBounds = true;
+        options.PlotFcn = @optimplotfval;
+        options.OptimalityTolerance = 1e-10;
+        options.ConstraintTolerance = 1e-10;
+
+   end
+   if nargin < 3
+        use_hess = true;
+   end
+   if nargin < 4
+       only_inner = false;
+   end
+   if nargin < 5
+       calc_extreme_points = false;
+   end
+    addpath('./polytopes_2017_10_04_v1.9')
+    linopt = optimoptions('linprog');
+    linopt.Algorithm = 'interior-point';
+    linopt.ConstraintTolerance = 1e-10;
+    inner = true;
+    y0 = 1; z0 = 1;
+    V = [];
+    [cardx,cardy,cardz] = size(p);
+    assert(cardx==2) ;
+    [gb,igb] = create_gamma_basis(y0,z0,cardx,cardy,cardz);
+    [condleq_lhs,condleq_rhs] = setup_delta_p_conditions_gamma(p,gb);
+
+    % For binary T it is guaranteed that a solution in the inner of deltap
+    % fullfils either conditional independence of T and X given Y or of T 
+    % and Y given X. We first restrict deltap via linear equality constraints to 
+    % search for solutions in these subspaces. If no optimum is found there
+    % it must lie on the boundary of deltap
+
+    [condeq_lhs,condeq_rhs] = setup_independence_X_Y_given_Z(p,gb);
+    initial_value = zeros(size(gb,2),1); 
+    f = zeros(size(initial_value));
+    disp('rank')
+    disp(rank(condeq_lhs));
+    disp('aug rank')
+    arank = rank([condeq_lhs condeq_rhs]);
+    disp(arank);
+    %x = linprog(f,[],[],condeq_lhs,condeq_rhs);
+    x_orig = linprog(f,condleq_lhs,condleq_rhs,condeq_lhs,condeq_rhs,[],[],linopt);  
+    if calc_extreme_points
+        V = lcon2vert(condleq_lhs,condleq_rhs,condeq_lhs,condeq_rhs,1e-10);
+    end
+    if isempty(x_orig)
+        disp('didnt find any feasible point x y given z')    
+        [condeq_lhs,condeq_rhs] = setup_independence_X_Z_given_Y(p,gb);
+
+        initial_value = zeros(size(gb,2),1); 
+        f = zeros(size(initial_value));
+        disp('rank')
+        disp(rank(condeq_lhs))
+        disp('aug rank')
+        arank = rank([condeq_lhs condeq_rhs]);
+        disp(arank);
+        %x = linprog(f,[],[],condeq_lhs,condeq_rhs);
+        x_orig = linprog(f,condleq_lhs,condleq_rhs,condeq_lhs,condeq_rhs,[],[],linopt); 
+        if calc_extreme_points
+            V = lcon2vert(condleq_lhs,condleq_rhs,condeq_lhs,condeq_rhs,1e-10);
+        end
+        if isempty(x_orig)
+            disp('didnt find any feasible point x z given y')
+            inner = false;
+            arank = 0;
+            V = [];
+            if ~only_inner
+                f = @(x) gamma_objective_gradient(x,p,gb,y0,z0);
+                options.SpecifyObjectiveGradient = true;
+                if use_hess
+                    options.HessianFcn = @(x,~) hess_gamma(x,p,gb,igb,y0,z0);
+                end
+                [x_orig,fval,exitflag,output,lambda,grad,hessian] = ...
+                fmincon(f,initial_value,condleq_lhs,condleq_rhs,[],[],[],[],[],options);
+                if exitflag == -2 
+                    options.Algorithm = 'sqp';
+                    disp('WARNING! first algorithm did not find feasible point,trying again with sqp')
+                    [x_orig,fval,exitflag,output,lambda,grad,hessian] = ...
+                    fmincon(f,initial_value,condleq_lhs,condleq_rhs, ...
+                    [],[],[],[],[],options);
+                end
+            end
+        else
+            inner = min(condleq_rhs-condleq_lhs*x_orig)>0;
+        end
+    else
+        inner = min(condleq_rhs-condleq_lhs*x_orig)>0;
+    end
+        
+            
+    if isempty(x_orig) 
+        x = [];
+        fval = nan;
+        unique = 2;471
+    else
+    if isempty(V)
+        unique = 2;
+    else
+        unique = size(V,1)<2;    
+    end
+    x = p + reshape(gb * x_orig,size(p));
+    x(x<0)=0;x=x/sum(x(:));
+    Q = x;
+    fval = MI_X_YZ(Q);
+    CI = real(calc_CI(p,Q));
+    UIY = real(MI_X_Y_given_Z(Q))
+    UIZ = real(MI_X_Z_given_Y(Q))
+    SI = real(MI_X_YZ(p) - CI - UIY - UIZ);
+    end
+
+end
+
